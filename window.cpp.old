@@ -1,0 +1,357 @@
+#include <QObject>
+#include <QPainter>
+#include <stdio.h>
+
+#include "window.h"
+#include <QLineEdit>
+#include <QLabel>
+#include <QHBoxLayout>
+#include <QSpacerItem>
+#include <QPushButton>
+#include <QDebug>
+#include <QMessageBox>
+#include <QRadioButton>
+
+#define DEFAULT_A -10
+#define DEFAULT_B 10
+#define DEFAULT_N 10
+
+#define DELTA 0.1
+
+static inline double f_0 (double x)
+{
+  return x;
+}
+
+static inline double d_1 (double x)
+{
+  return 1;
+}
+
+static inline double d_2 (double x)
+{
+  return 0;
+}
+
+Window::Window (QWidget *parent)
+  : QWidget (parent)
+{
+  a = DEFAULT_A;
+  b = DEFAULT_B;
+  n = DEFAULT_N;
+  parent_save = parent;
+  f = f_0;
+  d1 = d_1;
+  d2 = d_2;
+
+  x          = new double [40000];
+
+  m_coef_a = new double [40000];
+  m_coef_b = new double [40000];
+  m_coef_c = new double [40000];
+  m_coef_d = new double [40000];
+
+  ksi  = new double [40000];
+  v    = new double [40000];
+  func = new double [40000];
+
+  coeff_v_left   = new double [40000];
+  coeff_v_center = new double [40000];
+  coeff_v_right  = new double [40000];
+  rhs            = new double [40000];
+
+  c_1 = new double [40000];
+  c_2 = new double [40000];
+  c_3 = new double [40000];
+
+
+  change_func ();
+}
+
+Window::~Window()
+{
+  delete [] x;
+
+  delete [] m_coef_a;
+  delete [] m_coef_b;
+  delete [] m_coef_c;
+  delete [] m_coef_d;
+
+  delete [] ksi;
+  delete [] v;
+  delete [] func;
+
+  delete [] coeff_v_left;
+  delete [] coeff_v_center;
+  delete [] coeff_v_right;
+  delete [] rhs;
+
+  delete [] c_1;
+  delete [] c_2;
+  delete [] c_3;
+
+}
+
+void Window::exit_all ()
+{
+  parent_save->close();
+  delete this;
+}
+
+QSize Window::minimumSizeHint () const
+{
+  return QSize (100, 100);
+}
+
+QSize Window::sizeHint () const
+{
+  return QSize (1000, 1000);
+}
+
+int Window::parse_command_line (int argc, char *argv[])
+{
+  if (argc == 1)
+    return -1;
+
+  if (argc == 2)
+    return -2;
+
+  if (   sscanf (argv[1], "%lf", &a) != 1
+         || sscanf (argv[2], "%lf", &b) != 1
+         || b - a < MIN_FOR_COMPARE
+         || (argc > 3 && sscanf (argv[3], "%d", &n) != 1)
+         || n <= 0)
+    return -3;
+  func_id = 0;
+  scale_coeff = 1.0;
+  func_id = 0;
+  idx_delta_function = 0;
+  val_delta_function = 0;
+
+  return 1;
+}
+
+/// change current function for drawing
+void Window::change_func ()
+{
+  scale_coeff = 1.0;
+
+  func_id = (func_id + 1) % 4;
+  f_name.clear();
+  switch (func_id)
+    {
+    case 0:
+      f_name.append("chebyshev; n=");
+      break;
+    case 1:
+      f_name.append("spline; n=");
+      break;
+    case 2:
+      f_name.append("both methods; n=");
+      break;
+    case 3:
+      f_name.append("residual; n=");
+    }
+  f_name.append (QString::number(n));
+  update ();
+}
+
+void Window::init_drawing_plane (QPainter &painter, int N)
+{
+  double delta_y = 0.,
+         delta_x = (b - a) / (N - 1);
+
+  double x1 = 0.,
+         y1 = 0.;
+  double max_y = -1000., min_y = 1000.;
+
+  if (func_id < 3)
+    {
+      double delta = delta_x < DELTA ? delta_x : DELTA;
+      for (x1 = a; x1 - b < MIN_FOR_COMPARE; x1 += delta)
+        {
+          y1 = f(x1);
+          if (y1 < min_y)
+            min_y = y1;
+          if (y1 > max_y)
+            max_y = y1;
+        }
+    }
+  else
+    {
+      double step = (b - a) / width ();
+      int i = 0;
+      for (x1 = a, i = 0; i < width (); x1 += step, i++)
+        {
+          y1 = f (x1) - f_interpolation_chebyshev (x1, m_coef_c, a, b, N);
+          if (y1 < min_y)
+            min_y = y1;
+          if (y1 > max_y)
+            max_y = y1;
+
+          y1 = f (x1) - f_spline_interpolation (x1, N);
+          if (y1 < min_y)
+            min_y = y1;
+          if (y1 > max_y)
+            max_y = y1;
+        }
+      delta_y = 0.01 * (max_y - min_y);
+      min_y -= delta_y;
+      max_y += delta_y;
+
+      if (fabs (min_y - max_y) < MIN_FOR_DRAW)
+        {
+          min_y = 1.;
+          max_y = 2.;
+        }
+    }
+
+  // graph label
+  f_name.clear();
+  switch (func_id)
+    {
+    case 0:
+      f_name.append("chebyshev; n=");
+      break;
+    case 1:
+      f_name.append("spline; n=");
+      break;
+    case 2:
+      f_name.append("both methods; n=");
+      break;
+    case 3:
+      f_name.append("residual; n=");
+    }
+  f_name.append (QString::number(n));
+  f_name.append (" Max value: ");
+  f_name.append (QString::number (max_y));
+
+  painter.setPen ("black");
+  painter.drawText (0, 20, f_name);
+
+  painter.translate (0.5 * width (), 0.5 * height ());
+  painter.scale (scale_coeff * width () / (b - a), -height () * scale_coeff / (1.0 * (max_y - min_y)));
+  painter.translate (-0.5 * (a + b), -0.5 * (min_y + max_y));
+
+  delta_y = 0.01 * (max_y - min_y);
+  min_y -= delta_y;
+  max_y += delta_y;
+
+  painter.setPen ("red");
+  painter.drawLine (a, 0., b, 0.);
+  painter.drawLine (0., -500., 0., 500.);
+
+}
+
+// render graph
+void Window::paintEvent (QPaintEvent * /* event */)
+{
+  QPainter painter (this);
+  painter.save ();
+
+  int i, N = n;
+  double x1, x2, y1, y2;
+  if (n < 2)
+    N = 2;
+  else if (n > 3000)
+    N = 3000;
+  //double delta_x = (b - a) / (N - 1);
+  double step = (b - a) / width ();
+
+  use_all_methods ();
+  init_drawing_plane (painter, N);
+
+  if (func_id < 3)
+    {
+      // draw real graph
+      painter.setPen ("blue");
+      x1 = a;
+      y1 = f (a);
+      func[idx_delta_function] += val_delta_function;
+
+      for (i = 1, x2 = x1 + step; i < width (); i++, x2 += step)
+        {
+          y2 = f (x2);
+          if (fabs (x[idx_delta_function] - x2) <= step)
+            y2 += val_delta_function;
+          painter.drawLine (QPointF (x1, y1), QPointF (x2, y2));
+          x1 = x2, y1 = y2;
+        }
+      x2 = b;
+      y2 = f (x2);
+    }
+
+  if (func_id == 0 || func_id == 2) // draw 1 method
+    {
+      painter.setPen ("green");
+      x1 = a;
+      y1 = f (a);
+
+      for (i = 0; i < width (); i++)
+        {
+          x2 = x1 + step;
+          y2 = f_interpolation_chebyshev (x2, m_coef_c, a, b, N);
+          painter.drawLine (QPointF (x1, y1), QPointF (x2, y2));
+          x1 = x2, y1 = y2;
+        }
+      x2 = b;
+      y2 = f(x2); // last point should be same as function's (HACK)
+
+      painter.drawLine (QPointF (x1, y1), QPointF (x2, y2));
+    }
+
+  if (func_id == 1 || func_id == 2) // draw 2 method
+    {
+      painter.setPen ("black");
+      x1 = a;
+      y1 = f (a);
+
+      for (i = 0; i < width (); i++)
+        {
+          x2 = x1 + step;
+          y2 = f_spline_interpolation (x2, N);
+          printf ("[%f]: %f and %f\n", x2, y2, f(x2));
+
+          painter.drawLine (QPointF (x1, y1), QPointF (x2, y2));
+          x1 = x2, y1 = y2;
+        }
+      x2 = b;
+      y2 = f(x2); // last point should be same as function's (HACK)
+
+      painter.drawLine (QPointF (x1, y1), QPointF (x2, y2));
+
+      // render function name
+    }
+
+  if (func_id == 3)
+    {
+      painter.setPen ("green");
+      x1 = a;
+      y1 = 0.;//f (x1);
+      step = (b - a) / width ();
+      for (i = 1, x2 = x1 + step; i < width (); i++, x2 += step)
+        {
+          y2 = f(x2) - f_interpolation_chebyshev (x2, m_coef_c, a, b, N);
+          painter.drawLine (QPointF (x1, y1), QPointF (x2, y2));
+          x1 = x2, y1 = y2;
+        }
+      x2 = b;
+      y2 = 0.;
+      painter.drawLine (QPointF (x1, y1), QPointF (x2, y2));
+
+      painter.setPen ("black");
+      x1 = a;
+      y1 = 0.;//f (x1);
+      for (i = 1, x2 = x1 + step; i < width (); i++, x2 += step)
+        {
+          y2 = f(x2) - f_spline_interpolation (x2, N);
+          painter.drawLine (QPointF (x1, y1), QPointF (x2, y2));
+          x1 = x2, y1 = y2;
+        }
+      x2 = b;
+      y2 = 0.;
+      painter.drawLine (QPointF (x1, y1), QPointF (x2, y2));
+    }
+
+  painter.restore ();
+}

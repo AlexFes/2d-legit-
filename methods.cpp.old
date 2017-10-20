@@ -1,0 +1,247 @@
+#include "window.h"
+#include <stdio.h>
+#include <QDebug>
+#include <QMessageBox>
+
+void Window::use_all_methods ()
+{
+  int N = n;
+  if (n < 2)
+    N = 2;
+  else if (n > 3000)
+    N = 3000;
+
+  double delta_x = (b - a) / (N - 1);
+
+  for (int i = 0; i < N; i++)
+    {
+      x[i] = a + i * delta_x;
+      //workspace_array_newton[i] = f (x[i]);
+      func[i] = f(x[i]);
+    }
+
+  ksi[0] = a - delta_x / 2;
+  ksi[N] = b + delta_x / 2;
+  for (int i = 1; i < N; i++)
+    ksi[i] = (x[i - 1] + x[i]) / 2;
+
+  /// CHEBYSHEV
+  ///
+  make_array_coef_chebyshev (a, b, N, m_coef_a, m_coef_b, m_coef_c, m_coef_d);
+
+  /// SPLINE
+  ///
+  solve_v (N);
+}
+
+/// ==============================================================
+/// |                        Chebyshev                           |
+/// ==============================================================
+
+int Window::make_array_coef_chebyshev (
+    double a,
+    double b,
+    int n,
+    double *coef_a,
+    double *coef_b,
+    double *coef_c,
+    double *coef_d
+    )
+{
+  int i, j;
+  double prev_arcsin = -M_PI / 2/*asin (-1)*/, curr_arcsin;
+  double x, prev_x = a;
+  double dif_ba = b - a, sum_ba = b + a;
+  double h = dif_ba / n;
+  double prev_sqrt = 0, curr_sqrt;
+
+  for (i = 0; i < n; i++)
+    {
+      x = a + (i + 1) * h;
+      // x = sum_ba / 2 - dif_ba / 2 * cos (M_PI * (2. * i + 1) / (2. * n));
+      curr_arcsin = asin ((2. * x - sum_ba) / dif_ba);
+      // printf ("%.2f %.2f\n", x, curr_arcsin);
+      coef_a[i] = curr_arcsin - prev_arcsin;
+      prev_arcsin = curr_arcsin;
+    }
+  // curr_arcsin = asin (1);
+  // coef_a[i] = curr_arcsin - prev_arcsin;
+
+  for (i = 0; i < n; i++)
+    {
+      x = a + (i + 1) * h;
+      // x = sum_ba / 2 - dif_ba / 2 * cos (M_PI * (2. * i + 1) / (2. * n));
+      curr_sqrt = sqrt (1 - (((2. * x - sum_ba) / dif_ba) * ((2. * x - sum_ba) / dif_ba)));
+      coef_b[i] = sum_ba / 2. * coef_a[i] - dif_ba / 2. * (curr_sqrt - prev_sqrt);
+      prev_sqrt = curr_sqrt;
+    }
+  // curr_sqrt = 0;
+  // coef_b[i] = sum_ba / 2. * coef_a[i] - dif_ba / 2. * (curr_sqrt - prev_sqrt);
+
+  for (i = 0; i < n; i++)
+    {
+      x = a + (i + 1) * h;
+      // x = sum_ba / 2 - dif_ba / 2 * cos (M_PI * (2. * i + 1) / (2. * n));
+      coef_c[i] = (coef_a[i] * x - coef_b[i]) / (x - prev_x);
+      coef_d[i] = (coef_b[i] - coef_a[i] * prev_x) / (x - prev_x);
+      prev_x = x;
+    }
+  // coef_c[i] = (coef_a[i] * b - coef_b[i]) / (x - prev_x);
+  // coef_d[i] = (coef_b[i] - coef_a[i] * prev_x) / (b - prev_x);
+
+  //put coef u in coef_a
+  coef_a[0] = coef_c[0] * f (a);
+  for (i = 1; i < n; i++)
+    {
+      // x = sum_ba / 2 - dif_ba / 2 * cos (M_PI * (2. * i - 1) / (2. * n));
+      x = a + i * h;
+      coef_a[i] = (coef_c[i] + coef_d[i - 1]) * f (x);
+    }
+  coef_a[n] = coef_d[n - 1] * f (b);
+
+  //put alpha in coef_c
+  double g_0, g_1, z, g;
+  for (i = 0; i <= n; i++)
+    coef_c[i] = 0;
+  for (j = 0; j <= n; j++)
+    {
+      // if (j == 0) x = a;
+      // else if (j == n) x = b;
+      // else
+      // x = sum_ba / 2 - dif_ba / 2 * cos (M_PI * (2. * j - 1) / (2. * n));;
+      x = a + j * h;
+      g_0 = coef_a[j];
+      coef_c[0] += g_0;
+      z = 2. * (2. * x - sum_ba) / dif_ba;
+      g_1 = g_0 * z / 2.;
+      coef_c[1] += g_1;
+      for (i = 2; i < n; i++)
+        {
+          g = z * g_1 - g_0;
+          g_0 = g_1;
+          g_1 = g;
+          coef_c[i] += g;
+        }
+    }
+  coef_c[0] /= M_PI;
+  for (i = 1; i < n; i++)
+    {
+      coef_c[i] *= 2.;
+      coef_c[i] /= M_PI;
+    }
+  return 0;
+}
+
+double Window::f_interpolation_chebyshev (
+    double x,
+    double *coef,
+    double a,
+    double b,
+    int n
+    )
+{
+  int i;
+  double answer = 0;
+  double z, t_0, t_1, t;
+  double sum_ba = b + a, dif_ba = b - a;
+
+  z = 2. * (2 * x - sum_ba) / dif_ba;
+  t_0 = 1;
+  t_1 = z / 2.;
+
+  answer = coef[0] * t_0 + coef[1] * t_1;
+
+  for (i = 2; i < n; i++)
+    {
+      t = z * t_1 - t_0;
+      answer += coef[i] * t;
+      t_0 = t_1;
+      t_1 = t;
+    }
+  return answer;
+}
+
+/// ==============================================================
+/// |                          Spline                            |
+/// ==============================================================
+
+/// Solve matrix (0,...,a_i, b_i, c_i, 0, ......, 0 | f_i)
+///
+static inline void solve_tridiag_matrix (double *a, double *b, double *c, double *rhs, double *x, int n)
+{
+  int i;
+
+  c[0] /= b[0];
+  for (i = 1; i < n - 1; i++)
+    {
+      b[i] -= a[i - 1] * c[i - 1];
+      c[i] /= b[i];
+    }
+  b[n - 1] -= a[n - 2] * c[n - 2];
+
+  x[0] = rhs[0] / b[0];
+  for (i = 1; i < n; i++)
+    x[i] = (rhs[i] - a[i - 1] * x[i - 1]) / b[i];
+
+  for (i = n - 2; i >= 0; i--)
+    x[i] -= c[i] * x[i + 1];
+}
+
+void Window::solve_v (int N)
+{
+  int i;
+  double tmp1;
+
+  for (i = 1; i < N; i++)
+    ksi[i] = 0.5 * (x[i - 1] + x[i]);
+
+  ksi[0] = a - (ksi[2] - ksi[1]) / 2;
+  ksi[N] = b + (ksi[N - 1] - ksi[N - 2]) / 2;
+
+  for (i = 1; i < N; i++)
+    {
+      coeff_v_center[i] = 1.0 / (ksi[i] - x[i - 1]) + 1.0 / (ksi[i] - ksi[i - 1]) + 1.0 / (x[i] - ksi[i]) + 1.0 / (ksi[i + 1] - ksi[i]);
+      coeff_v_right[i] = 1.0 / (ksi[i + 1] - x[i]) - 1.0 / (ksi[i + 1] - ksi[i]);
+      coeff_v_left[i - 1] = 1.0 / (x[i - 1] - ksi[i - 1]) - 1.0 / (ksi[i] - ksi[i - 1]);
+      rhs[i] = func[i - 1] * (1.0 / (x[i - 1] - ksi[i - 1]) + 1.0 / (ksi[i] - x[i - 1])) + func[i] * (1.0 / (x[i] - ksi[i]) + 1.0 / (ksi[i + 1] - x[i]));
+    }
+
+  double tmp_0 = 2 / (ksi[1] - ksi[0]),
+         tmp_N = 2 / (ksi[N] - ksi[N - 1]);
+  rhs[0] = d2 (a) + f (a) * (1 / (a - ksi[0]) + 1 / (ksi[1] - a)) * tmp_0;
+  rhs[N] = d2 (b) + f (b) * (1 / (b - ksi[N - 1]) + 1 / (ksi[N] - b)) * tmp_N;
+
+  coeff_v_center[0] = tmp_0 / (a - ksi[0]);
+  coeff_v_center[N] = tmp_N / (b - ksi[N - 1]);
+
+  coeff_v_right[0] = tmp_0 / (ksi[1] - a);
+  coeff_v_left[N - 1] = tmp_N / (ksi[N] - b);
+
+//  printf ("(%11.3f %11.3f %11.3f)\n", coeff_v_center[0], coeff_v_right[0], 0.);
+//  for (i = 1; i < N; i++)
+//    {
+//      printf ("(%11.3f %11.3f %11.3f)\n", coeff_v_left[i], coeff_v_center[i], coeff_v_right[i]);
+//    }
+//  printf ("(%11.3f %11.3f %11.3f)\n", 0., coeff_v_left[N - 1], coeff_v_center[N]);
+
+  solve_tridiag_matrix (coeff_v_left, coeff_v_center, coeff_v_right, rhs, v, N + 1);
+
+  for (i = 0; i < N; i ++)
+    {
+      c_1[i] = v[i];
+      tmp1 = ((v[i + 1] - func[i]) / (ksi[i + 1] - x[i]) - (func[i] - v[i]) / (x[i] - ksi[i])) / (ksi[i + 1] - ksi[i]);
+      c_2[i] = (func[i] - v[i]) / (x[i] - ksi[i]) - (x[i] - ksi[i]) * tmp1;
+      c_3[i] = tmp1;
+    }
+}
+
+double Window::f_spline_interpolation  (double x_0, int N)
+{
+  double delta_x = (b - a) / (N - 1);
+  int i = (int)trunc ((x_0 - a) / delta_x);
+
+//  printf ("IN %f: (%f, %f, ksi=%f), f_s = %f, f_real=%f\n", x_0, x[i], x[i + 1], ksi[i],
+//           rhs[3 * i] + rhs[3 * i + 1] * (x_0 - ksi[i]) + rhs[3 * i + 2] * (x_0 - ksi[i]) * (x_0 - ksi[i]), f(x_0));
+
+  return c_1[i] + c_2[i] * (x_0 - ksi[i]) + c_3[i] * (x_0 - ksi[i]) * (x_0 - ksi[i]);
+}
