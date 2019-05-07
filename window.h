@@ -13,7 +13,6 @@
 #define MIN_FOR_COMPARE 1e-12
 
 class Window : public QWidget {
-
     Q_OBJECT
 
     int func_id;
@@ -39,10 +38,14 @@ class Window : public QWidget {
            *c_2,
            *c_3;
 
-    double *res;
+   double *ak_1,
+          *ak_2,
+          *ak_3,
+          *ak_4;
+
+    // double *res;
 
 public:
-
     Window (QWidget *parent);
     ~Window ();
 
@@ -52,8 +55,8 @@ public:
     double scale_coeff;
 
     void use_all_methods ();
-    void NewtonNumbers (double *res, int n);
-    double NewtonSolve (double x_0, double *res, int n);
+    void AkimaNumbers(int n);
+    double AkimaSolve(double x0, int n);
     void SplineNumbers (int n);
     double SplineSolve (double x_0, int n);
 

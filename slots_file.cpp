@@ -8,27 +8,23 @@
 #define DELTA_FUNC_STEP 1
 
 void Window::get_closer () {
-
     scale_coeff *= 1.2;
     update();
 }
 
 void Window::get_further () {
-
     scale_coeff /= 1.2;
     update();
 }
 
 void Window::change_func () {
-
     scale_coeff = 1.0;
-
     func_id = (func_id + 1) % 3;
     f_name.clear();
 
     switch (func_id) {
         case 0:
-            f_name.append("Newton; n=");
+            f_name.append("Akima; n=");
             break;
         case 1:
             f_name.append("Spline; n=");
@@ -41,24 +37,20 @@ void Window::change_func () {
     }
 
     f_name.append (QString::number(n));
-
     update ();
 }
 
 void Window::increase_n () {
-
     n *= 2;
     idx_delta_function *= 2;
   //func_id = 0;
   //memset (x, 0, 40000 * sizeof (double));
-
     use_all_methods ();
-
     f_name.clear();
 
     switch (func_id) {
         case 0:
-            f_name.append("Newton; n=");
+            f_name.append("Akima; n=");
             break;
         case 1:
             f_name.append("Spline; n=");
@@ -71,14 +63,12 @@ void Window::increase_n () {
     }
 
     f_name.append (QString::number(n));
-
     update();
 }
 
 void Window::decrease_n () {
-
-    if (n < 3) {
-        n = 3;
+    if (n < 4) {
+        n = 4;
         //qDebug () << n;
     }
 
@@ -88,12 +78,11 @@ void Window::decrease_n () {
     }
 
     use_all_methods ();
-
     f_name.clear();
 
     switch (func_id) {
         case 0:
-            f_name.append("Newton; n=");
+            f_name.append("Akima; n=");
             break;
         case 1:
             f_name.append("Spline; n=");
@@ -103,12 +92,10 @@ void Window::decrease_n () {
     }
 
     f_name.append (QString::number(n));
-
     update();
 }
 
 void Window::delta_function_plus() {
-
     if (idx_delta_function < n)
         idx_delta_function++;
 
@@ -116,7 +103,6 @@ void Window::delta_function_plus() {
 }
 
 void Window::delta_function_minus() {
-
     if (idx_delta_function > 0)
         idx_delta_function--;
 
@@ -124,16 +110,11 @@ void Window::delta_function_minus() {
 }
 
 void Window::delta_function_up() {
-
     val_delta_function += DELTA_FUNC_STEP;
-
     update();
 }
 
 void Window::delta_function_down() {
-
     val_delta_function -= DELTA_FUNC_STEP;
-
     update();
 }
-

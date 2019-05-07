@@ -20,16 +20,14 @@
 #define DELTA 0.1
 
 static inline double f_0 (double x) {
-
-  //return x;
+  // return x;
   //return exp(x);
   return 3*x*x+2*x+1;
   //return x*x*x+3*x*x+2*x+1;
 }
 
 static inline double df_0 (double x) {
-
-  //return 1;
+  // return 1 + x - x;
   //return exp(x);
   return 6*x+2;
   //return 3*x*x+6*x+2;
@@ -61,7 +59,6 @@ static inline double dd_2 (double x)
 */
 Window::Window (QWidget *parent)
   : QWidget (parent) {
-
     a = DEFAULT_A;
     b = DEFAULT_B;
     n = DEFAULT_N;
@@ -96,13 +93,17 @@ Window::Window (QWidget *parent)
     c_2 = 0;
     c_3 = 0;
 
-    res = 0;
+    ak_1 = 0;
+    ak_2 = 0;
+    ak_3 = 0;
+    ak_4 = 0;
+
+    // res = 0;
 
     change_func ();
 }
 
 Window::~Window() {
-
     delete [] x;
     delete [] f_array;
 //  delete [] method_1_y;
@@ -127,31 +128,31 @@ Window::~Window() {
     delete [] c_2;
     delete [] c_3;
 
-    delete[]res;
+    delete[]ak_1;
+    delete[]ak_2;
+    delete[]ak_3;
+    delete[]ak_4;
+
+    // delete[]res;
 }
 
 void Window::exit_all () {
-
     parent_save->close();
     delete this;
 }
 
 QSize Window::minimumSizeHint () const {
-
     return QSize (100, 100);
 }
 
 QSize Window::sizeHint () const {
-
     return QSize (1000, 1000);
 }
 
 
 int Window::parse_command_line (int argc, char *argv[]) {
-
     if (argc == 1)
         return -1;
-
     if (argc == 2)
         return -2;
 
@@ -171,14 +172,12 @@ int Window::parse_command_line (int argc, char *argv[]) {
 }
 
 void Window::init_drawing_plane (QPainter &painter, int N) {
-
     double w = width(), h = height();
-
     f_name.clear();
 
     switch (func_id) {
         case 0:
-            f_name.append("Newton; n=");
+            f_name.append("Akima; n=");
             break;
         case 1:
             f_name.append("Spline; n=");
@@ -201,35 +200,28 @@ void Window::init_drawing_plane (QPainter &painter, int N) {
 }
 
 void Window::paintEvent (QPaintEvent*) {
-
     QPainter painter (this);
     painter.save ();
 
     int i, N = n;
-
     double x1, x2, y1, y2;
 
-    if (n < 2)
-        N = 2;
-
+    if (n < 4)
+        N = 4;
     else if (n > 3000)
         N = 3000;
 
-    double step = (b-a)/width ();
-
+    double step = (b-a)/width();
     init_drawing_plane (painter, N);
 
     /// draw real graph
     if (func_id < 3) {
         painter.setPen ("blue");
-
         x1 = a;
         y1 = f (a);
-
         func[idx_delta_function] += val_delta_function;
 
-
-        for (i = 1, x2 = x1 + step; i < width (); i++, x2 += step) {
+        for (i = 1, x2 = x1 + step; i < width(); i++, x2 += step) {
             y2 = f (x2);
 
             if (fabs (x[idx_delta_function] - x2) <= step)
@@ -240,19 +232,18 @@ void Window::paintEvent (QPaintEvent*) {
         }
 
         x2 = b;
-        y2 = f (x2);
+        y2 = f(x2);
     }
 
-    /// draw Newton
+    /// draw Akima
     if (func_id == 0) {
         painter.setPen ("green");
-
         x1 = a;
-        y1 = f (a);
+        y1 = f(a);
 
-        for (i = 0; i < width (); i++) {
+        for (i = 0; i < width(); i++) {
             x2 = x1 + step;
-            y2 = NewtonSolve(x2, res, N);
+            y2 = AkimaSolve(x2, N);
 
             painter.drawLine (QPointF (x1, y1), QPointF (x2, y2));
             x1 = x2, y1 = y2;
@@ -267,11 +258,10 @@ void Window::paintEvent (QPaintEvent*) {
     /// draw Spline
     if (func_id == 1) {
         painter.setPen ("black");
-
         x1 = a;
         y1 = f (a);
 
-        for (i = 0; i < width (); i++) {
+        for (i = 0; i < width(); i++) {
             x2 = x1 + step;
             y2 = SplineSolve(x2, N);
 
@@ -294,7 +284,7 @@ void Window::paintEvent (QPaintEvent*) {
 
         for (i = 1; i < width (); i++) {
             x2 = x1 + step;
-            y2 = f(x2) - NewtonSolve(x2, res, N);
+            y2 = f(x2) - AkimaSolve(x2, N);
 
             painter.drawLine (QPointF (x1, y1), QPointF (x2, y2));
             x1 = x2, y1 = y2;
@@ -303,9 +293,7 @@ void Window::paintEvent (QPaintEvent*) {
         x2 = b;
         y2 = 0.;
         painter.drawLine (QPointF (x1, y1), QPointF (x2, y2));
-
         painter.setPen ("black");
-
         x1 = a;
         y1 = 0.;//f (x1);
 
@@ -319,7 +307,6 @@ void Window::paintEvent (QPaintEvent*) {
 
         x2 = b;
         y2 = 0.;
-
         painter.drawLine (QPointF (x1, y1), QPointF (x2, y2));
     }
 
@@ -328,7 +315,6 @@ void Window::paintEvent (QPaintEvent*) {
 
 
 static inline void free_array (double *arr) {
-
     if (arr)
         delete [] arr;
 
@@ -336,7 +322,6 @@ static inline void free_array (double *arr) {
 }
 
 void Window::update_arrays (int n) {
-
     free_array (x);
     free_array (f_array);
 
@@ -348,7 +333,11 @@ void Window::update_arrays (int n) {
     free_array (c_2);
     free_array (c_3);
 
-    free_array (res);
+    free_array (ak_1);
+    free_array (ak_2);
+    free_array (ak_3);
+    free_array (ak_4);
+    // free_array (res);
 
     x          = new double [n];
     f_array    = new double [n];
@@ -361,5 +350,9 @@ void Window::update_arrays (int n) {
     c_2 = new double [n];
     c_3 = new double [n];
 
-    res = new double [2*n];
+    ak_1 = new double [n];
+    ak_2 = new double [n];
+    ak_3 = new double [n];
+    ak_4 = new double [n];
+    // res = new double [2*n];
 }
