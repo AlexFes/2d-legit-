@@ -55,7 +55,7 @@ void Window::AkimaNumbers(int n) {
         if (w_1*w_1 + w_2*w_2 < 1e-12) {
             d[i] = ((x[i+1] - x[i])*(func[i] - func[i-1])/(x[i] - x[i-1]) + (x[i] - x[i-1])*(func[i+1] - func[i])/(x[i+1] - x[i]))/(x[i+1] - x[i-1]);
         } else {
-            d[i] = (w_2*(func[i] - func[i-1])/(x[i] - x[i-1]) + w_1*(func[i+1] - func[i])/(x[i+1] - x[i]))/(w_2 - w_1);
+            d[i] = (w_2*(func[i] - func[i-1])/(x[i] - x[i-1]) + w_1*(func[i+1] - func[i])/(x[i+1] - x[i]))/(w_2 + w_1);
         }
     }
 
@@ -75,8 +75,6 @@ double Window::AkimaSolve(double x0, int n) {
     if (i == n-1) {
         i = n - 2;
     }
-
-    // printf("\n i=%d  appr=%f\n", i, ak_1[i] + ak_2[i]*(x0 - x[i]) + ak_3[i]*(x0 - x[i])*(x0 - x[i]) + ak_4[i]*(x0 - x[i])*(x0 - x[i])*(x0 - x[i]));
 
     return ak_1[i] + ak_2[i]*(x0 - x[i]) + ak_3[i]*(x0 - x[i])*(x0 - x[i]) + ak_4[i]*(x0 - x[i])*(x0 - x[i])*(x0 - x[i]);
 }

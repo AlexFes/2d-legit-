@@ -19,6 +19,8 @@ class Window : public QWidget {
     QString f_name;
     double a;
     double b;
+    double res1;
+    double res2;
     int n;
     double (*f) (double);
     double (*df) (double);
@@ -43,8 +45,6 @@ class Window : public QWidget {
           *ak_3,
           *ak_4;
 
-    // double *res;
-
 public:
     Window (QWidget *parent);
     ~Window ();
@@ -60,7 +60,7 @@ public:
     void SplineNumbers (int n);
     double SplineSolve (double x_0, int n);
 
-    void init_drawing_plane (QPainter &painter, int N);
+    void init_drawing_plane (QPainter &painter);
 
 public:
     int parse_command_line (int argc, char *argv[]);
@@ -76,6 +76,8 @@ public slots:
     void delta_function_up();
     void delta_function_down();
     void exit_all();
+    void expand_region();
+    void shrink_region();
 
 protected:
     void paintEvent (QPaintEvent *event);
@@ -83,6 +85,5 @@ protected:
 private:
     void update_arrays (int n);
 };
-
 
 #endif

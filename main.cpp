@@ -20,6 +20,9 @@ int main (int argc, char *argv[]) {
     if (graph_area->parse_command_line (argc, argv) != 1) {
         QMessageBox::warning (0, "Wrong input arguments!",
                                 "Wrong input arguments!");
+        graph_area->exit_all();
+        delete tool_bar;
+        delete window;
         return -1;
     }
 
@@ -35,23 +38,25 @@ int main (int argc, char *argv[]) {
     action->setShortcut (Qt::Key_5);
     action = tool_bar->addAction ("E&xit: Ctrl+X", graph_area, SLOT (exit_all ()));
     action->setShortcut (QString ("Ctrl+X"));
-    action = tool_bar->addAction ("Delta func &u&p: up", graph_area,
+    action = tool_bar->addAction ("up", graph_area,
                                   SLOT (delta_function_up ()));
     action->setShortcut (Qt::Key_Up);
-    action = tool_bar->addAction ("Delta func &d&o&w&n: down", graph_area,
+    action = tool_bar->addAction ("down", graph_area,
                                   SLOT (delta_function_down ()));
     action->setShortcut (Qt::Key_Down);
-    action = tool_bar->addAction ("Delta func &l&e&f&t: left", graph_area,
+    action = tool_bar->addAction ("left", graph_area,
                                   SLOT (delta_function_minus()));
     action->setShortcut (Qt::Key_Left);
-    action = tool_bar->addAction ("Delta func &r&i&g&h&t: right", graph_area,
+    action = tool_bar->addAction ("right", graph_area,
                                   SLOT (delta_function_plus ()));
     action->setShortcut (Qt::Key_Right);
-
+    action = tool_bar->addAction("shrink: 9", graph_area, SLOT(shrink_region()));
+    action->setShortcut(Qt::Key_9);
+    action = tool_bar->addAction("expand: 0", graph_area, SLOT(expand_region()));
+    action->setShortcut(Qt::Key_0);
 
     graph_area->use_all_methods ();
     tool_bar->setMaximumHeight (30);
-    // tool_bar->addMenu(Menu);
 
     window->setMenuBar (tool_bar);
     window->setCentralWidget (graph_area);
